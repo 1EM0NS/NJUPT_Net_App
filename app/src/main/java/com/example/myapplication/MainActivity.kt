@@ -94,6 +94,10 @@ class MainActivity : AppCompatActivity() {
         binding.githubLink.setOnClickListener {
             openUrl("https://github.com/1EM0NS/NJUPT_NET/")
         }
+        binding.githubLinkd.setOnClickListener {
+            openUrl("https://github.com/1EM0NS/NJUPT_NET/")
+        }
+
     }
 
     private fun isConnectedToSsid(ssid: String): Boolean {

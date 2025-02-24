@@ -121,6 +121,14 @@
                 android:layout_height="wrap_content"
                 android:text="登出"
                 android:layout_marginTop="16dp" />
+        <TextView
+                android:id="@+id/githubLinkd"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="项目地址:https://github.com/1EM0NS/NJUPT_Net_App"
+                android:textColor="@color/blue"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="16dp" />
     </LinearLayout>
 
     <!-- 底部说明 -->
