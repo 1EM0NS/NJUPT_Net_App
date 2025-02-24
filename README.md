@@ -34,7 +34,7 @@
 - **智能重连**：自动切换目标WiFi
 - **安全存储**：使用Android SharedPreferences加密存储凭证
 - **协程异步**：使用Kotlin协程处理网络请求
-
+![示例图片](https://github.com/1EM0NS/NJUPT_Net_App/blob/master/88df522017e38ede833a58b30924194d.jpg)
 ### 网络请求
 ```kotlin
 private fun buildLoginUrl(studentId: String, password: String, operator: String?): String {
@@ -48,4 +48,3 @@ private fun buildLoginUrl(studentId: String, password: String, operator: String?
                 "user_account=%2C0%2C${studentId}%40$operator&user_password=$password"
     }
 }
-![示例图片]([https://example.com/image.png](https://github.com/1EM0NS/NJUPT_Net_App/blob/master/88df522017e38ede833a58b30924194d.jpg))
