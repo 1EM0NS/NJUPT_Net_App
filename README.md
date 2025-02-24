@@ -1,7 +1,5 @@
 # 南邮校园网登录助手
 
-[![GitHub License](https://img.shields.io/github/license/1EM0NS/NJUPT_NET)](https://github.com/1EM0NS/NJUPT_NET)
-
 南京邮电大学校园网快速登录工具，支持校园网、中国移动、中国电信网络接入。
 
 ## 功能特性
