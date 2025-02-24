@@ -128,7 +128,7 @@
             android:id="@+id/tv_bottom_hint"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="提示：连接时请确保已连接校园 WiFi 且关闭数据网络，可以设置常用的校园网WiFi为自动连接。"
+            android:text="提示：连接时请确保已连接校园 WiFi （不连其实也没事，会弹出来的）且关闭数据网络（不关其实问题也不大，有问题会提示），可以设置常用的校园网WiFi为自动连接这样比较方便。"
             android:textColor="#757575"
             android:textSize="12sp"
             android:layout_marginTop="24dp"
