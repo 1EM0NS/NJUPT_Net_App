@@ -1,0 +1,7 @@
+<resources>
+    <string-array name="operators">
+        <item>校园网</item>
+        <item>中国移动</item>
+        <item>中国电信</item>
+    </string-array>
+</resources>
