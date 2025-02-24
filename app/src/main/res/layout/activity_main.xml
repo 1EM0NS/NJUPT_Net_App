@@ -5,7 +5,14 @@
         android:layout_height="match_parent"
         android:orientation="vertical"
         android:padding="16dp">
-
+    <!-- 在根布局内添加 -->
+    <ProgressBar
+            android:id="@+id/loadingProgress"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerInParent="true"
+            android:visibility="gone"
+            android:indeterminateTint="@color/black"/>
     <!-- 标题：NJUPT_NET -->
     <!-- 不选择默认字体 -->
     <!--居中显示-->

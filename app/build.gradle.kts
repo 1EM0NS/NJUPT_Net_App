@@ -36,6 +36,7 @@ android {
 }
 
 dependencies {
+    implementation ("com.squareup.okhttp3:logging-interceptor:4.9.3")
     implementation("com.squareup.okhttp3:okhttp:4.12.0") // 添加 OkHttp 依赖
     implementation("androidx.core:core-ktx:1.10.1")
     implementation("androidx.appcompat:appcompat:1.6.1")

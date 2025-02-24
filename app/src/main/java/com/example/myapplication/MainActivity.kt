@@ -16,12 +16,17 @@ import android.os.Bundle
 import android.provider.ContactsContract
 import android.text.InputType
 import android.view.View
+import android.view.animation.Animation
 import android.view.animation.AnimationUtils
+import android.widget.Button
+import android.widget.ProgressBar
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.example.myapplication.databinding.ActivityMainBinding
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -123,8 +128,31 @@ class MainActivity : AppCompatActivity() {
     // 添加onResume处理
     override fun onResume() {
         super.onResume()
-        checkPendingLogin()
+        checkNetworkStatus()
     }
+    private fun checkNetworkStatus() = lifecycleScope.launch {
+        val isOnline = withContext(Dispatchers.IO) {
+            try {
+                val request = Request.Builder()
+                    .url("https://www.baidu.com")
+                    .header("Connection", "close")
+                    .build()
+
+                val response = client.newCall(request).execute()
+                response.close() // 立即关闭连接
+                response.isSuccessful
+            } catch (e: Exception) {
+                false
+            }
+        }
+    runOnUiThread {
+        if (isOnline) {
+            showLogoutUI()
+        } else {
+            showLoginUI()
+        }
+    }
+}
 
     // 添加待处理登录检查
     private fun checkPendingLogin() {
@@ -196,43 +224,57 @@ class MainActivity : AppCompatActivity() {
     private fun connectToWifi(ssid: String, password: String? = null) {
         val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            if (checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION), PERMISSION_REQUEST_CODE)
-            }
-            // Android 10及以上版本使用WifiNetworkSuggestion
-            wifiManager.removeNetworkSuggestions(emptyList()) // 清除所有旧的建议
+        // 创建带进度条的对话框
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("正在连接校园网")
+            .setView(R.layout.dialog_connecting) // 新建自定义布局
+            .setCancelable(false)
+            .create()
 
+        // 显示对话框
+        dialog.show()
+
+        // 设置自定义布局组件
+        val progressBar = dialog.findViewById<ProgressBar>(R.id.progressBar)
+        val tvMessage = dialog.findViewById<TextView>(R.id.tvMessage)
+        val btnManual = dialog.findViewById<Button>(R.id.btnManual)
+
+        tvMessage?.text = "正在自动连接：$ssid\n如果长时间未连接成功，请尝试手动切换"
+        btnManual?.setOnClickListener {
+            dialog.dismiss()
+            startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
+        }
+
+        // 添加旋转动画
+        val rotateAnim = AnimationUtils.loadAnimation(this, R.anim.rotate_continuous).apply {
+            duration = 1000
+            repeatCount = Animation.INFINITE
+        }
+        progressBar?.startAnimation(rotateAnim)
+
+        // 实际连接逻辑
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Android 10+ 使用建议网络API
             val suggestion = WifiNetworkSuggestion.Builder()
                 .setSsid(ssid)
                 .setWpa2Passphrase(password ?: "")
                 .setIsHiddenSsid(false)
                 .build()
 
-            val suggestionsList = listOf(suggestion)
-            wifiManager.addNetworkSuggestions(suggestionsList)
-
-            AlertDialog.Builder(this)
-                .setTitle("连接到WiFi")
-                .setMessage("你选择的网络与当前WiFi不对应,正在帮你切换到$ssid，WiFi连接上即可登录")
-                .setPositiveButton("确定") { _, _ -> }
-                .show()
+            wifiManager.removeNetworkSuggestions(emptyList())
+            wifiManager.addNetworkSuggestions(listOf(suggestion))
         } else {
-            // Android 10以下版本使用WifiConfiguration
+            // 旧版本处理逻辑保持不变
             val wifiConfig = WifiConfiguration().apply {
                 SSID = "\"$ssid\""
-                if (password != null) {
-                    preSharedKey = "\"$password\""
-                    status = WifiConfiguration.Status.ENABLED
-                    allowedGroupCiphers.set(WifiConfiguration.GroupCipher.TKIP)
-                    allowedGroupCiphers.set(WifiConfiguration.GroupCipher.CCMP)
-                    allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK)
-                    allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.TKIP)
-                    allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.CCMP)
-                    allowedProtocols.set(WifiConfiguration.Protocol.RSN)
-                } else {
-                    allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE)
-                }
+                preSharedKey = "\"$password\""
+                status = WifiConfiguration.Status.ENABLED
+                allowedGroupCiphers.set(WifiConfiguration.GroupCipher.TKIP)
+                allowedGroupCiphers.set(WifiConfiguration.GroupCipher.CCMP)
+                allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK)
+                allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.TKIP)
+                allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.CCMP)
+                allowedProtocols.set(WifiConfiguration.Protocol.RSN)
             }
 
             val networkId = wifiManager.addNetwork(wifiConfig)
@@ -240,9 +282,23 @@ class MainActivity : AppCompatActivity() {
                 wifiManager.disconnect()
                 wifiManager.enableNetwork(networkId, true)
                 wifiManager.reconnect()
-            } else {
-                showToast("无法连接到WiFi: $ssid")
             }
+        }
+
+        // 自动检查连接状态
+        lifecycleScope.launch {
+            var retryCount = 0
+            while (retryCount < 10) {
+                delay(2000)
+                if (isConnectedToSsid(ssid)) {
+                    dialog.dismiss()
+                    login()
+                    return@launch
+                }
+                retryCount++
+            }
+            dialog.dismiss()
+            showToast("自动连接失败，请尝试手动切换")
         }
     }
     // 添加显示关闭数据网络弹窗的方法
@@ -344,21 +400,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showLogoutUI() {
-        binding.logoutContainer.startAnimation(
-            AnimationUtils.loadAnimation(this, R.anim.fade_in)
-        )
+
         binding.loginContainer.visibility = View.GONE
         binding.logoutContainer.visibility = View.VISIBLE
 
         binding.logoutButton.setOnClickListener { logout() }
     }
 
-    private fun logout() = lifecycleScope.launch {
+    private fun logout() = lifecycleScope.launch{
         withContext(Dispatchers.IO) {
             val request = Request.Builder()
                 .url("https://p.njupt.edu.cn:802/eportal/portal/logout")
                 .build()
-
             client.newCall(request).execute()
         }
         showLoginUI()
