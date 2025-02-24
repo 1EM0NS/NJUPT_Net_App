@@ -131,6 +131,8 @@
             android:text="提示：连接时请确保已连接校园 WiFi 且关闭数据网络，可以设置常用的校园网WiFi为自动连接。"
             android:textColor="#757575"
             android:textSize="12sp"
-            android:layout_marginTop="24dp"/>
+            android:layout_marginTop="24dp"
+            android:layout_marginBottom="50dp"
+    />
 
 </LinearLayout>
