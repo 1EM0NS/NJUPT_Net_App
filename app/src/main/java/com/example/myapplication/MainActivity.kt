@@ -210,7 +210,7 @@ class MainActivity : AppCompatActivity() {
 
             AlertDialog.Builder(this)
                 .setTitle("连接到WiFi")
-                .setMessage("你选择的网络与当前WiFi不对应,帮你切换到了$ssid")
+                .setMessage("你选择的网络与当前WiFi不对应,正在帮你切换到$ssid，WiFi连接上即可登录")
                 .setPositiveButton("确定") { _, _ -> }
                 .show()
         } else {
