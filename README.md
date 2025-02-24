@@ -48,3 +48,4 @@ private fun buildLoginUrl(studentId: String, password: String, operator: String?
                 "user_account=%2C0%2C${studentId}%40$operator&user_password=$password"
     }
 }
+![示例图片]([https://example.com/image.png](https://github.com/1EM0NS/NJUPT_Net_App/blob/master/88df522017e38ede833a58b30924194d.jpg))
