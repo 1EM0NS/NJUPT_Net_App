@@ -3,7 +3,6 @@ package com.example.myapplication
 import android.provider.Settings
 import android.app.AlertDialog
 import android.content.Context
-import okhttp3.Response
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.*
@@ -363,42 +362,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun buildLoginUrl(studentId: String, password: String, operator: String?): String {
-        return if (operator == null) {
-            "https://p.njupt.edu.cn:802/eportal/portal/login?" +
-                    "callback=dr1003&login_method=1&" +
-                    "user_account=%2C0%2C$studentId&user_password=$password"
-        } else {
-            "https://p.njupt.edu.cn:802/eportal/portal/login?" +
-                    "callback=dr1003&login_method=1&" +
-                    "user_account=%2C0%2C${studentId}%40$operator&user_password=$password"
-        }
-    }
-
-    private fun handleLoginResponse(response: Response): Boolean {
-        return try {
-            val responseBody = response.body?.string() // 使用 body 属性
-            when {
-                responseBody?.contains("AC999") == true -> {
-                    showToast("已登录")
-                    true
-                }
-                responseBody?.contains("Portal协议认证成功") == true -> {
-                    showToast("登录成功")
-                    saveConfig()
-                    true
-                }
-                else -> {
-                    showToast("登录失败: ${responseBody?.substringAfter("msg\":\"")?.substringBefore("\"")}")
-                    false
-                }
-            }
-        } catch (e: Exception) {
-            showToast("登录失败: ${e.message}")
-            false
-        }
-    }
-
     private fun showLogoutUI() {
 
         binding.loginContainer.visibility = View.GONE
@@ -409,10 +372,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun logout() = lifecycleScope.launch{
         withContext(Dispatchers.IO) {
-            val request = Request.Builder()
-                .url("https://p.njupt.edu.cn:802/eportal/portal/logout")
-                .build()
-            client.newCall(request).execute()
+            NetworkUtils.logout()
         }
         showLoginUI()
         showToast("已登出")
