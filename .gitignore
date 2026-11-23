@@ -1,0 +1,19 @@
+# Gradle / build outputs
+.gradle/
+build/
+app/build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# 本机 SDK 路径
+local.properties
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# 产物（通过 Release 分发）
+dist/
+*.apk

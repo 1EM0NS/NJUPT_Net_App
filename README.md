@@ -1,49 +1,70 @@
-# 南邮校园网登录助手
+# 南邮校园网登录助手（Android）
 
-南京邮电大学校园网快速登录工具，支持校园网、中国移动、中国电信网络接入。
+南京邮电大学校园网快速登录工具，支持校园网、中国移动、中国电信。
+与 Windows 版 [NJUPT_NET](https://github.com/1EM0NS/NJUPT_NET) 使用同一套门户协议实现。
 
-## 功能特性
+## 功能
 
-✅ **一键登录认证**  
-✅ **多运营商支持**（校园网/移动/电信）  
-✅ **凭证保存功能**  
-✅ **移动数据网络检测**  
-✅ **WiFi自动连接**  
-✅ **网络状态实时检测**  
-✅ **一键登出功能**  
-✅ **自适应Android版本**（兼容Android 6.0+）
+- 一键登录 / 退出登录
+- 校园网、中国移动（`@cmcc`）、中国电信（`@njxy`）三种接入方式
+- 记住账号与运营商，密码用 Android Keystore 加密保存
+- 门户状态实时判断，不依赖外网探测
+- 自动切换到对应 WiFi
+- **开着代理 / VPN / 分流 TUN 也能正常登录和退出**
 
 ## 使用说明
 
-### 登录流程
-1. 输入校园网账号（学号）
-2. 输入密码
-3. 选择运营商类型：
-   - 🏫 校园网：NJUPT
-   - 🟢 中国移动：NJUPT-CMCC
-   - 🔵 中国电信：NJUPT-CHINANET
-4. 点击"登录"按钮
+1. 连接校园网 WiFi（`NJUPT` / `NJUPT-CMCC` / `NJUPT-CHINANET`）
+2. 输入学号与密码，选择运营商
+3. 点击「登录」
 
-### 登出操作
-登录成功后点击"登出"按钮即可断开网络连接
-<img src="https://github.com/1EM0NS/NJUPT_Net_App/blob/master/88df522017e38ede833a58b30924194d.jpg" width="300" height="600" alt="示例图片">
+退出登录只会注销本机这一条会话，同一账号下的手机、平板不会被误踢。
+
+## 兼容性
+
+- Android 10（API 29）及以上
+- 目标版本 Android 14（API 34）
+- 覆盖安装无需卸载，签名与前代版本一致
+
 ## 技术实现
 
-### 核心功能
-- **网络检测**：实时监控网络连接状态
-- **智能重连**：自动切换目标WiFi
-- **安全存储**：使用Android SharedPreferences加密存储凭证
-- **协程异步**：使用Kotlin协程处理网络请求
-### 网络请求
-```kotlin
-private fun buildLoginUrl(studentId: String, password: String, operator: String?): String {
-    return if (operator == null) {
-        "https://p.njupt.edu.cn:802/eportal/portal/login?" +
-                "callback=dr1003&login_method=1&" +
-                "user_account=%2C0%2C$studentId&user_password=$password"
-    } else {
-        "https://p.njupt.edu.cn:802/eportal/portal/login?" +
-                "callback=dr1003&login_method=1&" +
-                "user_account=%2C0%2C${studentId}%40$operator&user_password=$password"
-    }
-}
+### 认证流程
+
+1. 探测门户端口（804 → 802 自动回退）
+2. 读取门户首页，提取客户端 IP / MAC / VLAN
+3. 读取 `a41.js` 的 `page_data_encrypt`，判断是否需要异或加密
+4. 调 `loadConfig` 获取实时登录配置（账号前缀、是否 Base64 等）
+5. 按配置构造并提交登录请求
+
+### 关键设计
+
+| 问题 | 处理方式 |
+| --- | --- |
+| 门户固定返回 `dr0001(...)`，与请求回调名无关 | 通用 JSONP 解析，不再按回调名匹配 |
+| 注销走 AC 网关查不到 CMCC 会话 | 自服务 `tooffline` 优先，网关 logout 兜底 |
+| 同一账号多设备，注销会误伤 | 在线列表用 IP + 本机 MAC 双重校验 |
+| 代理 / VPN / TUN 劫持门户流量 | 请求绑定校园 WiFi 网络 + 强制直连 + DNS 兜底 |
+| 代理 DNS 返回 fake-ip | 过滤 `198.18.0.0/15`，回退已知门户 IP |
+| 密码明文落盘 | Android Keystore AES-GCM 加密 |
+
+## 构建
+
+需要 JDK 17 与 Android SDK 34：
+
+```bash
+./gradlew assembleRelease
+```
+
+产物位于 `app/build/outputs/apk/release/app-release.apk`。
+
+## 测试
+
+```bash
+./gradlew testReleaseUnitTest
+```
+
+单元测试使用真实网关返回的报文，覆盖 JSONP 解析、会话选择、IP/MAC 校验、加密参数等逻辑。
+
+## 许可证
+
+MIT

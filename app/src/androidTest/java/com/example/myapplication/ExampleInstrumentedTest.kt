@@ -19,6 +19,7 @@ class ExampleInstrumentedTest {
     fun useAppContext() {
         // Context of the app under test.
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        assertEquals("com.example.myapplication", appContext.packageName)
+        // applicationId 与 namespace 不同：前者是 com.example.njuptnet
+        assertEquals("com.example.njuptnet", appContext.packageName)
     }
 }

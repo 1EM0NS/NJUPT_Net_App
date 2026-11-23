@@ -1,153 +1,208 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
-        xmlns:android="http://schemas.android.com/apk/res/android"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:padding="16dp">
-    <!-- 在根布局内添加 -->
-    <ProgressBar
-            android:id="@+id/loadingProgress"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_centerInParent="true"
-            android:visibility="gone"
-            android:indeterminateTint="@color/black"/>
-    <!-- 标题：NJUPT_NET -->
-    <!-- 不选择默认字体 -->
-    <!--居中显示-->
-    <TextView
-            android:id="@+id/titleTextView"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="NJUPT校园网\n登录器"
-            android:textAlignment="center"
-            android:textSize="30sp"
-            android:textStyle="bold"
-            android:fontFamily="Times New Roman"
-            android:textColor="@android:color/black"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginTop="40dp" />
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="?attr/colorSurface">
 
-    <!-- 中间空白区域（用于撑开标题和登录表单的间距） -->
-    <Space
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
-
-    <!-- 登录界面 -->
     <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="20dp"
+        android:paddingTop="28dp"
+        android:paddingBottom="24dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="南邮校园网"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="26sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="NJUPT Network"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="13sp" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="0dp"
+            app:strokeWidth="1dp"
+            app:strokeColor="?attr/colorOutlineVariant">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <TextView
+                    android:id="@+id/tvStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="未连接"
+                    android:textColor="?attr/colorOnSurface"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:text="状态由认证网关实时判断，不依赖外网探测"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:textSize="12sp" />
+
+                <ProgressBar
+                    android:id="@+id/loadingProgress"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:indeterminate="true"
+                    android:visibility="gone" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 登录 -->
+        <LinearLayout
             android:id="@+id/login_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:layout_marginBottom="300dp"
-            android:background="@android:color/white"
-            android:elevation="4dp"
-            android:padding="16dp">
+            android:layout_marginTop="18dp">
 
-        <EditText
-                android:id="@+id/et_student_id"
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="学号"
-                android:inputType="number" />
+                android:hint="学号">
 
-        <!-- 修改密码输入部分 -->
-        <LinearLayout
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/et_student_id"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="number"
+                    android:maxLines="1" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:layout_marginTop="16dp">
+                android:layout_marginTop="12dp"
+                android:hint="密码"
+                app:endIconMode="password_toggle">
 
-            <!-- 密码输入框 -->
-            <EditText
+                <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/et_password"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:hint="密码"
-                    android:inputType="textPassword"/>
+                    android:inputType="textPassword"
+                    android:maxLines="1" />
+            </com.google.android.material.textfield.TextInputLayout>
 
-        </LinearLayout>
-
-        <!-- 运营商提示 -->
-        <TextView
-                android:id="@+id/tv_operator_hint"
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="请选择运营商："
-                android:layout_marginTop="16dp"/>
+                android:layout_marginTop="18dp"
+                android:text="运营商"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:textSize="12sp" />
 
-
-        <Spinner
+            <Spinner
                 android:id="@+id/spOperator"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:entries="@array/operators"
-                android:layout_marginTop="16dp" />
+                android:layout_marginTop="6dp"
+                android:entries="@array/operators" />
 
-
-        <Button
-                android:id="@+id/login_button"
+            <TextView
+                android:id="@+id/tvAccountPreview"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="将使用：学号 + 所选运营商"
+                android:textColor="?attr/colorPrimary"
+                android:textSize="12sp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/login_button"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="18dp"
                 android:text="登录"
-                android:layout_marginTop="16dp" />
+                android:textSize="15sp"
+                app:cornerRadius="16dp" />
+        </LinearLayout>
 
-        <TextView
-                android:id="@+id/githubLink"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="项目地址:https://github.com/1EM0NS/NJUPT_Net_App"
-                android:textColor="@color/blue"
-                android:layout_gravity="center_horizontal"
-                android:layout_marginTop="16dp" />
-    </LinearLayout>
-
-    <!-- 登出界面 -->
-    <LinearLayout
+        <!-- 已登录 -->
+        <LinearLayout
             android:id="@+id/logout_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:visibility="gone"
-            android:layout_marginBottom="400dp"
-            android:background="@android:color/white"
-            android:elevation="4dp"
-            android:padding="16dp">
+            android:layout_marginTop="18dp"
+            android:visibility="gone">
 
-        <TextView
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="已登录状态"
-                android:textAlignment="center" />
+                android:text="当前设备已在线。退出只会注销本机这条会话，不会影响手机之外的其它设备。"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:textSize="13sp" />
 
-        <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/logout_button"
+                style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="登出"
-                android:layout_marginTop="16dp" />
-        <TextView
-                android:id="@+id/githubLinkd"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="项目地址:https://github.com/1EM0NS/NJUPT_Net_App"
-                android:textColor="@color/blue"
-                android:layout_gravity="center_horizontal"
-                android:layout_marginTop="16dp" />
-    </LinearLayout>
+                android:layout_height="52dp"
+                android:layout_marginTop="16dp"
+                android:text="退出登录"
+                android:textSize="15sp"
+                app:cornerRadius="16dp" />
+        </LinearLayout>
 
-    <!-- 底部说明 -->
-    <TextView
-            android:id="@+id/tv_bottom_hint"
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:id="@+id/githubLink"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="24dp"
+            android:text="项目地址"
+            android:textColor="?attr/colorPrimary"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/githubLinkd"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="4dp"
+            android:text="github.com/1EM0NS/NJUPT_Net_App"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="11sp" />
+
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="提示：连接时请确保已连接校园 WiFi （不连其实也没事，会弹出来的）且关闭数据网络（不关其实问题也不大，有问题会提示），可以设置常用的校园网WiFi为自动连接这样比较方便。"
-            android:textColor="#757575"
-            android:textSize="12sp"
-            android:layout_marginTop="24dp"
-            android:layout_marginBottom="50dp"
-    />
-
-</LinearLayout>
+            android:layout_marginTop="18dp"
+            android:text="提示：请先连接校园网 WiFi。开着代理或 VPN 也能正常登录与退出。"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="11sp" />
+    </LinearLayout>
+</ScrollView>

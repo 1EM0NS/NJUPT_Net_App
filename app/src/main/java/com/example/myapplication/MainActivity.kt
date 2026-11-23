@@ -1,23 +1,18 @@
-// MainActivity.kt - 主活动
 package com.example.myapplication
-import android.provider.Settings
+
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.*
-import android.net.wifi.WifiConfiguration
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.net.Uri
 import android.net.wifi.WifiNetworkSuggestion
 import android.net.wifi.WifiManager
-
 import android.os.Build
 import android.os.Bundle
-import android.provider.ContactsContract
-import android.text.InputType
+import android.provider.Settings
 import android.view.View
-import android.view.animation.Animation
-import android.view.animation.AnimationUtils
-import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
@@ -28,295 +23,313 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
 
 class MainActivity : AppCompatActivity() {
-    // 在类顶部添加常量
+
     companion object {
         private const val PERMISSION_REQUEST_CODE = 1001
     }
 
-    // 新增成员变量
-    private var pendingLoginTargetSsid: String? = null
     private lateinit var binding: ActivityMainBinding
-    private val prefs by lazy { getSharedPreferences("config", MODE_PRIVATE) }
-    private val client = OkHttpClient()
-    // 添加网络绑定相关代码
-    private lateinit var connectivityManager: ConnectivityManager
-    private var currentNetwork: Network? = null
+    private val credentials by lazy { CredentialStore(this) }
 
-    private fun isMobileDataEnabled(): Boolean {
-        val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val network = connectivityManager.activeNetwork
-            val capabilities = connectivityManager.getNetworkCapabilities(network)
-            capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
-        } else {
-            val activeNetworkInfo = connectivityManager.activeNetworkInfo
-            activeNetworkInfo?.type == ConnectivityManager.TYPE_MOBILE && activeNetworkInfo.isConnected
-        }
-    }
-    // 修改onCreate方法，添加权限检查
+    private var pendingLoginTargetSsid: String? = null
+    private var busy = false
+
+    private val operators = listOf(
+        Operator("校园网", null),
+        Operator("中国移动", "cmcc"),
+        Operator("中国电信", "njxy")
+    )
+
+    private data class Operator(val label: String, val suffix: String?)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        checkPermissions() // 添加这行
+
+        NetworkUtils.init(applicationContext)
+        checkPermissions()
         loadConfig()
         setupUI()
     }
 
-    // 添加权限回调处理
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        when (requestCode) {
-            PERMISSION_REQUEST_CODE -> {
-                if (grantResults.isNotEmpty() && grantResults[0] != PackageManager.PERMISSION_GRANTED) {
-                    showToast("需要位置权限来检测WiFi连接")
-                }
-            }
-        }
-    }
-    private fun checkPermissions() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(
-                    arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION),
-                    PERMISSION_REQUEST_CODE
-                )
-            }
-        }
+    override fun onResume() {
+        super.onResume()
+        checkPendingLogin()
+        refreshStatus()
     }
 
     private fun setupUI() {
-        binding.loginButton.setOnClickListener { attemptLogin() } // 修改这里
-        binding.githubLink.setOnClickListener {
-            openUrl("https://github.com/1EM0NS/NJUPT_NET/")
-        }
-        binding.githubLinkd.setOnClickListener {
-            openUrl("https://github.com/1EM0NS/NJUPT_NET/")
-        }
+        binding.loginButton.setOnClickListener { attemptLogin() }
+        binding.logoutButton.setOnClickListener { doLogout() }
+        binding.githubLink.setOnClickListener { openUrl("https://github.com/1EM0NS/NJUPT_Net_App") }
+        binding.githubLinkd.setOnClickListener { openUrl("https://github.com/1EM0NS/NJUPT_Net_App") }
 
-    }
+        binding.spOperator.onItemSelectedListener =
+            object : android.widget.AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(
+                    parent: android.widget.AdapterView<*>?,
+                    view: View?,
+                    position: Int,
+                    id: Long
+                ) {
+                    updateAccountPreview()
+                }
 
-    private fun isConnectedToSsid(ssid: String): Boolean {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-            checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
-        ) {
-            return false
-        }
-
-        val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-        val info = wifiManager?.connectionInfo ?: return false
-        return info.ssid?.removeSurrounding("\"") == ssid
-    }
-
-    // 添加获取目标SSID的方法
-    private fun getTargetSsid(): String {
-        return when (binding.spOperator.selectedItemPosition) {
-            1 -> "NJUPT-CMCC"
-            2 -> "NJUPT-CHINANET"
-            else -> "NJUPT"
-        }
-    }
-    // 添加onResume处理
-    override fun onResume() {
-        super.onResume()
-        checkNetworkStatus()
-    }
-    private fun checkNetworkStatus() = lifecycleScope.launch {
-        val isOnline = withContext(Dispatchers.IO) {
-            try {
-                val request = Request.Builder()
-                    .url("https://www.baidu.com")
-                    .header("Connection", "close")
-                    .build()
-
-                val response = client.newCall(request).execute()
-                response.close() // 立即关闭连接
-                response.isSuccessful
-            } catch (e: Exception) {
-                false
+                override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
             }
-        }
-    runOnUiThread {
-        if (isOnline) {
-            showLogoutUI()
-        } else {
-            showLoginUI()
-        }
-    }
-}
 
-    // 添加待处理登录检查
-    private fun checkPendingLogin() {
-        pendingLoginTargetSsid?.let { targetSsid ->
-            if (isConnectedToSsid(targetSsid)) {
-                pendingLoginTargetSsid = null
-                login()
-            }
+        binding.etStudentId.setOnFocusChangeListener { _, _ -> updateAccountPreview() }
+        updateAccountPreview()
+    }
+
+    // ===== 状态 =====
+
+    private fun refreshStatus() {
+        lifecycleScope.launch {
+            val online = withContext(Dispatchers.IO) { NetworkUtils.isOnline() }
+            if (online) showLogoutUI() else showLoginUI()
         }
     }
 
-    // 添加连接WiFi对话框
-    private fun showConnectToWifiDialog(targetSsid: String) {
-        AlertDialog.Builder(this)
-            .setTitle("需要连接校园网")
-            .setMessage("请先连接到WiFi：$targetSsid")
-            .setPositiveButton("去连接") { _, _ ->
-                pendingLoginTargetSsid = targetSsid
-                startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
-            }
-            .setNegativeButton("取消") { _, _ ->
-                pendingLoginTargetSsid = null
-            }
-            .show()
+    private fun showLogoutUI() {
+        binding.loginContainer.visibility = View.GONE
+        binding.logoutContainer.visibility = View.VISIBLE
+        binding.tvStatus.text = "已连接校园网"
     }
-    // 添加新的登录尝试逻辑
+
+    private fun showLoginUI() {
+        binding.loginContainer.visibility = View.VISIBLE
+        binding.logoutContainer.visibility = View.GONE
+        binding.tvStatus.text = "未连接"
+    }
+
+    // ===== 登录 =====
+
     private fun attemptLogin() {
-        // 先检查数据网络是否关闭
+        if (busy) return
+
+        val studentId = binding.etStudentId.text.toString().trim()
+        if (studentId.isEmpty()) {
+            toast("请输入学号")
+            return
+        }
+        if (binding.etPassword.text.isNullOrEmpty()) {
+            toast("请输入密码")
+            return
+        }
+
         if (isMobileDataEnabled()) {
             showDisableMobileDataDialog()
             return
         }
 
-        // 检查并开启WiFi
-        if (!checkAndEnableWifi()) {
-            return // 如果WiFi未开启，等待用户手动开启
-        }
+        if (!checkAndEnableWifi()) return
 
-        // 检查是否已连接到目标WiFi
         val targetSsid = getTargetSsid()
         if (isConnectedToSsid(targetSsid)) {
             login()
         } else {
-            // 自动连接到目标WiFi
             connectToWifi(targetSsid)
             pendingLoginTargetSsid = targetSsid
         }
     }
-    private fun checkAndEnableWifi(): Boolean {
-        val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
 
-        // 检查WiFi是否已开启
-        if (!wifiManager.isWifiEnabled) {
-            // 尝试开启WiFi
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                // Android 10及以上版本需要通过设置页面开启WiFi
-                showToast("请手动开启WiFi")
-                startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
-                return false
+    private fun login() {
+        if (busy) return
+        busy = true
+        setLoading(true)
+
+        lifecycleScope.launch {
+            val operator = operators.getOrNull(binding.spOperator.selectedItemPosition)?.suffix
+            val result = withContext(Dispatchers.IO) {
+                NetworkUtils.login(
+                    binding.etStudentId.text.toString().trim(),
+                    binding.etPassword.text.toString(),
+                    operator
+                )
+            }
+
+            busy = false
+            setLoading(false)
+            toast(result.message)
+            if (result.ok) {
+                saveConfig()
+                showLogoutUI()
             } else {
-                // Android 10以下版本可以直接开启WiFi
-                wifiManager.isWifiEnabled = true
-                showToast("WiFi已开启")
-                return true
+                showLoginUI()
             }
         }
+    }
+
+    // ===== 注销 =====
+
+    private fun doLogout() {
+        if (busy) return
+        busy = true
+        setLoading(true)
+
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) { NetworkUtils.logout() }
+            busy = false
+            setLoading(false)
+
+            toast(result.message)
+            if (result.ok) {
+                showLoginUI()
+            }
+        }
+    }
+
+    private fun setLoading(loading: Boolean) {
+        binding.loadingProgress.visibility = if (loading) View.VISIBLE else View.GONE
+        binding.loginButton.isEnabled = !loading
+        binding.logoutButton.isEnabled = !loading
+    }
+
+    // ===== 网络环境 =====
+
+    private fun isMobileDataEnabled(): Boolean {
+        val manager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = manager.activeNetwork ?: return false
+        val caps = manager.getNetworkCapabilities(network) ?: return false
+        return caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+    }
+
+    private fun checkAndEnableWifi(): Boolean {
+        val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        if (wifiManager.isWifiEnabled) return true
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            toast("请手动开启 WiFi")
+            startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
+            return false
+        }
+
+        @Suppress("DEPRECATION")
+        wifiManager.isWifiEnabled = true
+        toast("WiFi 已开启")
         return true
     }
-    private fun connectToWifi(ssid: String, password: String? = null) {
+
+    private fun isConnectedToSsid(ssid: String): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return false
+        }
+        val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+        @Suppress("DEPRECATION")
+        val info = wifiManager?.connectionInfo ?: return false
+        @Suppress("DEPRECATION")
+        return info.ssid?.removeSurrounding("\"") == ssid
+    }
+
+    private fun getTargetSsid(): String = when (binding.spOperator.selectedItemPosition) {
+        1 -> "NJUPT-CMCC"
+        2 -> "NJUPT-CHINANET"
+        else -> "NJUPT"
+    }
+
+    private fun connectToWifi(ssid: String) {
         val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
 
-        // 创建带进度条的对话框
         val dialog = AlertDialog.Builder(this)
             .setTitle("正在连接校园网")
-            .setView(R.layout.dialog_connecting) // 新建自定义布局
+            .setView(R.layout.dialog_connecting)
             .setCancelable(false)
             .create()
-
-        // 显示对话框
         dialog.show()
 
-        // 设置自定义布局组件
         val progressBar = dialog.findViewById<ProgressBar>(R.id.progressBar)
         val tvMessage = dialog.findViewById<TextView>(R.id.tvMessage)
-        val btnManual = dialog.findViewById<Button>(R.id.btnManual)
-
-        tvMessage?.text = "正在自动连接：$ssid\n如果长时间未连接成功，请尝试手动切换"
-        btnManual?.setOnClickListener {
+        dialog.findViewById<View>(R.id.btnManual)?.setOnClickListener {
             dialog.dismiss()
             startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
         }
 
-        // 添加旋转动画
-        val rotateAnim = AnimationUtils.loadAnimation(this, R.anim.rotate_continuous).apply {
-            duration = 1000
-            repeatCount = Animation.INFINITE
-        }
-        progressBar?.startAnimation(rotateAnim)
+        tvMessage?.text = "正在切换到 $ssid\n若长时间未连接成功，请手动选择该 WiFi"
+        progressBar?.visibility = View.VISIBLE
 
-        // 实际连接逻辑
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // Android 10+ 使用建议网络API
             val suggestion = WifiNetworkSuggestion.Builder()
                 .setSsid(ssid)
-                .setWpa2Passphrase(password ?: "")
                 .setIsHiddenSsid(false)
                 .build()
-
-            wifiManager.removeNetworkSuggestions(emptyList())
-            wifiManager.addNetworkSuggestions(listOf(suggestion))
-        } else {
-            // 旧版本处理逻辑保持不变
-            val wifiConfig = WifiConfiguration().apply {
-                SSID = "\"$ssid\""
-                preSharedKey = "\"$password\""
-                status = WifiConfiguration.Status.ENABLED
-                allowedGroupCiphers.set(WifiConfiguration.GroupCipher.TKIP)
-                allowedGroupCiphers.set(WifiConfiguration.GroupCipher.CCMP)
-                allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK)
-                allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.TKIP)
-                allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.CCMP)
-                allowedProtocols.set(WifiConfiguration.Protocol.RSN)
-            }
-
-            val networkId = wifiManager.addNetwork(wifiConfig)
-            if (networkId != -1) {
-                wifiManager.disconnect()
-                wifiManager.enableNetwork(networkId, true)
-                wifiManager.reconnect()
+            runCatching {
+                wifiManager.removeNetworkSuggestions(emptyList())
+                wifiManager.addNetworkSuggestions(listOf(suggestion))
             }
         }
 
-        // 自动检查连接状态
         lifecycleScope.launch {
-            var retryCount = 0
-            while (retryCount < 10) {
+            repeat(10) {
                 delay(2000)
                 if (isConnectedToSsid(ssid)) {
                     dialog.dismiss()
                     login()
                     return@launch
                 }
-                retryCount++
             }
             dialog.dismiss()
-            showToast("自动连接失败，请尝试手动切换")
+            toast("自动切换失败，请手动连接 $ssid")
         }
     }
-    // 添加显示关闭数据网络弹窗的方法
+
     private fun showDisableMobileDataDialog() {
         AlertDialog.Builder(this)
             .setTitle("关闭移动数据")
-            .setMessage("请先关闭移动数据以使用校园网登录")
-            .setPositiveButton("确定") { dialog, _ ->
-                dialog.dismiss()
-            }
-            .setCancelable(false) // 防止用户点击弹窗外区域关闭弹窗
+            .setMessage("校园网登录需要走 WiFi，请先关闭移动数据")
+            .setPositiveButton("知道了") { d, _ -> d.dismiss() }
+            .setCancelable(false)
             .show()
     }
 
+    private fun checkPendingLogin() {
+        val target = pendingLoginTargetSsid ?: return
+        if (isConnectedToSsid(target)) {
+            pendingLoginTargetSsid = null
+            login()
+        }
+    }
+
+    // ===== 权限 =====
+
+    private fun checkPermissions() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        if (checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(
+                arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION),
+                PERMISSION_REQUEST_CODE
+            )
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == PERMISSION_REQUEST_CODE &&
+            (grantResults.isEmpty() || grantResults[0] != PackageManager.PERMISSION_GRANTED)
+        ) {
+            toast("需要位置权限才能识别 WiFi 名称")
+        }
+    }
+
+    // ===== 配置 =====
+
     private fun loadConfig() {
-        binding.etStudentId.setText(prefs.getString("studentId", ""))
-        binding.etPassword.setText(prefs.getString("password", ""))
+        binding.etStudentId.setText(credentials.getStudentId())
+        binding.etPassword.setText(credentials.getPassword())
         binding.spOperator.setSelection(
-            when(prefs.getString("operator", "campus")) {
+            when (credentials.getOperator()) {
                 "cmcc" -> 1
                 "njxy" -> 2
                 else -> 0
@@ -325,73 +338,33 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun saveConfig() {
-        prefs.edit().apply {
-            putString("studentId", binding.etStudentId.text.toString())
-            putString("password", binding.etPassword.text.toString())
-            putString("operator", when(binding.spOperator.selectedItemPosition) {
+        credentials.setStudentId(binding.etStudentId.text.toString().trim())
+        credentials.setPassword(binding.etPassword.text.toString())
+        credentials.setOperator(
+            when (binding.spOperator.selectedItemPosition) {
                 1 -> "cmcc"
                 2 -> "njxy"
                 else -> "campus"
-            })
-            apply()
-        }
-    }
-
-    private fun login() = lifecycleScope.launch {
-        val (success, message) = withContext(Dispatchers.IO) {
-            val operator = when (binding.spOperator.selectedItemPosition) {
-                1 -> "cmcc"
-                2 -> "njxy"
-                else -> null
             }
-
-            NetworkUtils.login(
-                binding.etStudentId.text.toString(),
-                binding.etPassword.text.toString(),
-                operator
-            )
-        }
-
-        if (message != null) {
-            showToast(message)
-        }
-
-        if (success) {
-            saveConfig()
-            showLogoutUI()
-        }
-    }
-
-    private fun showLogoutUI() {
-
-        binding.loginContainer.visibility = View.GONE
-        binding.logoutContainer.visibility = View.VISIBLE
-
-        binding.logoutButton.setOnClickListener { logout() }
-    }
-
-    private fun logout() = lifecycleScope.launch{
-        withContext(Dispatchers.IO) {
-            NetworkUtils.logout()
-        }
-        showLoginUI()
-        showToast("已登出")
-    }
-
-    private fun showLoginUI() {
-        binding.logoutContainer.startAnimation(
-            AnimationUtils.loadAnimation(this, R.anim.fade_out)
         )
-        binding.loginContainer.visibility = View.VISIBLE
-        binding.logoutContainer.visibility = View.GONE
+    }
 
+    private fun updateAccountPreview() {
+        val id = binding.etStudentId.text?.toString()?.trim().orEmpty()
+        if (id.isEmpty()) {
+            binding.tvAccountPreview.text = "将使用：学号 + 所选运营商"
+            return
+        }
+        val suffix = operators.getOrNull(binding.spOperator.selectedItemPosition)?.suffix
+        binding.tvAccountPreview.text =
+            if (suffix == null) "登录账号：$id" else "登录账号：$id@$suffix"
     }
 
     private fun openUrl(url: String) {
-        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
     }
 
-    private fun showToast(message: String) {
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    private fun toast(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 }
