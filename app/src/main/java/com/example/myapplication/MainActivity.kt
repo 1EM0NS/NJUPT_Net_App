@@ -45,7 +45,6 @@ class MainActivity : AppCompatActivity() {
     private var checkingUpdate = false
     private var downloadingUpdate = false
     private var pendingUpdate: UpdateService.UpdateInfo? = null
-    private var previewLogin = false
 
     /** 分段选择顺序与 operators 一一对应。 */
     private val operatorIds = intArrayOf(R.id.opCampus, R.id.opCmcc, R.id.opTelecom)
@@ -68,18 +67,11 @@ class MainActivity : AppCompatActivity() {
         loadConfig()
         setupUI()
         checkUpdate(manual = false)
-
-        // 仅 debug 构建：用于预览未登录表单布局，正式包不会走到这里。
-        if (BuildConfig.DEBUG && intent.getBooleanExtra("previewLogin", false)) {
-            previewLogin = true
-            showLoginUI()
-        }
     }
 
     override fun onResume() {
         super.onResume()
         checkPendingLogin()
-        if (previewLogin) return
         refreshStatus()
     }
 
