@@ -3,4 +3,20 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     <color name="blue">#0000FF</color>
+    <color name="ic_launcher_background">#2F6BFF</color>
+
+    <!-- 与 Windows 版保持一致的配色 -->
+    <color name="brand">#2F6BFF</color>
+    <color name="brand_dark">#2453C4</color>
+    <color name="text_primary">#0F172A</color>
+    <color name="text_secondary">#5A6478</color>
+    <color name="text_muted">#8B95A7</color>
+    <color name="card_bg">#FFFFFF</color>
+    <color name="card_border">#E8EDF6</color>
+    <color name="soft_fill">#F2F5FB</color>
+    <color name="success">#0E9F6E</color>
+    <color name="danger">#DC2626</color>
+    <color name="banner_bg">#EAF0FF</color>
+    <color name="surface_page">#F7F9FD</color>
+    <color name="card_stroke">#E4EAF4</color>
 </resources>

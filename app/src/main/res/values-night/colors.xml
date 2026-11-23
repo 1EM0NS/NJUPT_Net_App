@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand">#6E96FF</color>
+    <color name="brand_dark">#9DB8FF</color>
+    <color name="text_primary">#E8EDF6</color>
+    <color name="text_secondary">#9AA6BC</color>
+    <color name="text_muted">#6E7A90</color>
+    <color name="card_bg">#141B2B</color>
+    <color name="card_border">#232B3D</color>
+    <color name="soft_fill">#1B2334</color>
+    <color name="success">#34D399</color>
+    <color name="danger">#F87171</color>
+    <color name="banner_bg">#1B2742</color>
+    <color name="surface_page">#0B1020</color>
+</resources>

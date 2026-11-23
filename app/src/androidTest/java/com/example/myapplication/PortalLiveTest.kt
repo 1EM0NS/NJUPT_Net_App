@@ -65,6 +65,35 @@ class PortalLiveTest {
         assertTrue("应能在自服务列表里找到本机会话", probe.sessionIdFound)
     }
 
+    /** 更新检查只读自检：真实请求 GitHub API，确认能拿到版本信息。 */
+    @Test
+    fun updateCheckReachesGitHub() {
+        val result = runCatching { UpdateService.check(currentVersion = "0.0.1") }.getOrElse {
+            Log.e(TAG, "update check failed", it)
+            throw it
+        }
+        when (result) {
+            is UpdateService.CheckResult.Available -> {
+                val info = result.info
+                Log.i(
+                    TAG,
+                    "update: tag=${info.tag} asset=${info.assetName} size=${info.size} " +
+                        "sha=${info.sha256.take(12)} url=${info.downloadUrl.take(60)}"
+                )
+                assertTrue("应返回版本号", info.tag.isNotEmpty())
+                assertTrue("应能拿到 APK 下载地址", info.downloadUrl.isNotEmpty())
+                assertTrue("APK 名称应为 apk", info.assetName.endsWith(".apk"))
+                assertTrue("应带出文件大小", info.size > 0)
+            }
+
+            is UpdateService.CheckResult.UpToDate ->
+                throw AssertionError("本地 0.0.1 不可能已是最新，实际 remote=${result.remoteTag}")
+
+            is UpdateService.CheckResult.Failed ->
+                throw AssertionError("检查更新失败：${result.error}")
+        }
+    }
+
     private companion object {
         const val TAG = "NJUPT_LIVE"
     }

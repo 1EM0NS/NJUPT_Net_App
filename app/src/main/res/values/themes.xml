@@ -1,9 +1,62 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Base application theme. -->
     <style name="Base.Theme.MyApplication" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+        <item name="colorPrimary">@color/brand</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorPrimaryContainer">#E6EEFF</item>
+        <item name="colorOnPrimaryContainer">@color/brand_dark</item>
+        <item name="colorSecondaryContainer">#E6EEFF</item>
+        <item name="colorOnSecondaryContainer">@color/brand_dark</item>
+        <item name="colorSurface">@color/surface_page</item>
+        <item name="colorSurfaceContainerLow">@color/card_bg</item>
+        <item name="colorSurfaceContainer">@color/card_bg</item>
+        <item name="colorSurfaceContainerHigh">@color/card_bg</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary</item>
+        <item name="colorOutlineVariant">@color/card_border</item>
+        <item name="android:windowBackground">@color/surface_page</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 
     <style name="Theme.MyApplication" parent="Base.Theme.MyApplication"/>
+
+    <!-- 次级操作：小尺寸胶囊按钮，文字仍然清晰可读 -->
+    <style name="Widget.PillButton" parent="Widget.Material3.Button.TextButton">
+        <item name="android:textSize">13sp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:paddingStart">14dp</item>
+        <item name="android:paddingEnd">14dp</item>
+        <item name="android:textColor">@color/brand_dark</item>
+        <item name="backgroundTint">#EAF0FF</item>
+        <item name="cornerRadius">18dp</item>
+        <item name="iconTint">@color/brand</item>
+        <item name="iconSize">16dp</item>
+        <item name="iconPadding">5dp</item>
+    </style>
+
+    <!-- 运营商分段选择：选中态用品牌蓝实心，与桌面版一致 -->
+    <style name="Widget.SegmentButton" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="android:textSize">13sp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:paddingStart">6dp</item>
+        <item name="android:paddingEnd">6dp</item>
+        <item name="strokeColor">@color/card_stroke</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="backgroundTint">@android:color/transparent</item>
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="cornerRadius">11dp</item>
+    </style>
+
+    <style name="Widget.SegmentButton.Checked" parent="Widget.SegmentButton">
+        <item name="backgroundTint">@color/brand</item>
+        <item name="strokeColor">@color/brand</item>
+        <item name="android:textColor">@color/white</item>
+    </style>
 </resources>
