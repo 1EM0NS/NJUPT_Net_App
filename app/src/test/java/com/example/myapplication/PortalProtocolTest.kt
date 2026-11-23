@@ -153,4 +153,76 @@ class PortalProtocolTest {
         assertFalse(PortalProtocol.looksLikePortalJson(""))
         assertTrue(PortalProtocol.looksLikePortalJson(loadConfigSample))
     }
+
+    private fun candidate(
+        id: String,
+        wifi: Boolean = false,
+        vpn: Boolean = false,
+        internet: Boolean = false,
+        validated: Boolean = false
+    ) = PortalProtocol.NetworkCandidate(id, wifi, vpn, internet, validated)
+
+    @Test
+    fun `开移动数据时仍然选中未认证的校园 WiFi`() {
+        val picked = PortalProtocol.pickWifiNetwork(
+            listOf(
+                candidate("cell", internet = true, validated = true),
+                candidate("campus-wifi", wifi = true),
+                candidate("clash-vpn", vpn = true, internet = true)
+            )
+        )
+        assertEquals("campus-wifi", picked?.id)
+    }
+
+    @Test
+    fun `有多个 WiFi 时优先已验证，其次有外网`() {
+        val picked = PortalProtocol.pickWifiNetwork(
+            listOf(
+                candidate("wifi-plain"),
+                candidate("wifi-internet", wifi = true, internet = true),
+                candidate("wifi-ok", wifi = true, internet = true, validated = true)
+            )
+        )
+        assertEquals("wifi-ok", picked?.id)
+
+        val second = PortalProtocol.pickWifiNetwork(
+            listOf(
+                candidate("wifi-plain", wifi = true),
+                candidate("wifi-internet", wifi = true, internet = true)
+            )
+        )
+        assertEquals("wifi-internet", second?.id)
+    }
+
+    @Test
+    fun `只有蜂窝和 VPN 时不会误选`() {
+        val picked = PortalProtocol.pickWifiNetwork(
+            listOf(
+                candidate("cell", internet = true, validated = true),
+                candidate("vpn", vpn = true, internet = true, validated = true)
+            )
+        )
+        assertNull(picked)
+    }
+
+    @Test
+    fun `用门户页面给的 MAC 能匹配到本机会话`() {
+        // Android 10+ 读不到网卡 MAC，只能依赖门户 ss4 的值。
+        val list = JSONArray(
+            """[{"online_ip":"10.161.194.228","online_mac":"00e09722ec28","user_account":"1224045718@cmcc"}]"""
+        )
+        val portalMac = PortalProtocol.normalizeMac("00:E0:97:22:EC:28")
+        val own = PortalProtocol.selectOwnSession(list, "10.161.194.228", portalMac)
+        assertNotNull(own)
+        assertEquals("1224045718@cmcc", PortalProtocol.str(own!!, "user_account"))
+    }
+
+    @Test
+    fun `同一 IP 但 MAC 不同不会被当成本机`() {
+        val list = JSONArray(
+            """[{"online_ip":"10.161.194.228","online_mac":"aabbccddeeff","user_account":"other"}]"""
+        )
+        val own = PortalProtocol.selectOwnSession(list, "10.161.194.228", "00E09722EC28")
+        assertNull(own)
+    }
 }

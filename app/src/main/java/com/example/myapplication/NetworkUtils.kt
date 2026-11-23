@@ -13,6 +13,7 @@ import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.net.Inet4Address
@@ -152,28 +153,26 @@ object NetworkUtils {
 
     suspend fun login(studentId: String, password: String, operator: String?): Result =
         withContext(Dispatchers.IO) {
-            withCampusNetwork {
-                try {
+            try {
+                withCampusNetwork {
                     val account = if (operator.isNullOrEmpty()) studentId else "$studentId@$operator"
                     portalLogin(account, password)
-                } catch (e: Exception) {
-                    Result(false, "登录失败：${e.message ?: "未知错误"}")
                 }
+            } catch (e: Exception) {
+                Result(false, "登录失败：${e.message ?: "未知错误"}")
             }
         }
 
     suspend fun logout(): Result = withContext(Dispatchers.IO) {
-        withCampusNetwork {
-            try {
-                portalLogout()
-            } catch (e: Exception) {
-                Result(false, "退出失败：${e.message ?: "未知错误"}")
-            }
+        try {
+            withCampusNetwork { portalLogout() }
+        } catch (e: Exception) {
+            Result(false, "退出失败：${e.message ?: "未知错误"}")
         }
     }
 
     suspend fun isOnline(): Boolean = withContext(Dispatchers.IO) {
-        withCampusNetwork { runCatching { currentSession() != null }.getOrDefault(false) }
+        runCatching { withCampusNetwork { currentSession() != null } }.getOrDefault(false)
     }
 
     fun currentPort(): Int = port
@@ -267,16 +266,14 @@ object NetworkUtils {
      *
      * 开着梯子时，系统默认路由会指向 VPN 的 TUN 网卡，门户内网地址走进去就必然失败。
      * 把进程临时绑定到 WiFi 网络后，请求会从物理网卡发出，从而绕开代理。
+     *
+     * 同理，开着移动数据时系统默认网络可能是蜂窝，绑定后也能保证走 WiFi。
      */
     private fun <T> withCampusNetwork(block: () -> T): T {
         val manager = appContext?.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
             ?: return block()
-        val campus = campusNetworks(manager).firstOrNull { network ->
-            val caps = manager.getNetworkCapabilities(network) ?: return@firstOrNull false
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
-                !caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
-                caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-        } ?: return block()
+        val campus = pickWifiNetwork(manager)
+            ?: throw IOException("未检测到 WiFi，请先连接校园网")
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
             return block()
@@ -290,6 +287,33 @@ object NetworkUtils {
                 manager.bindProcessToNetwork(null)
             }
         }
+    }
+
+    /**
+     * 认证前的校园 WiFi 通常还没有 NET_CAPABILITY_INTERNET / VALIDATED
+     * （系统要等门户认证通过才认它可上网），所以不能拿这两个能力做硬性筛选，
+     * 否则未登录时会选不到网络，请求又落回 VPN 或蜂窝。
+     */
+    private fun pickWifiNetwork(manager: ConnectivityManager): android.net.Network? {
+        val candidates = campusNetworks(manager).mapNotNull { network ->
+            val caps = manager.getNetworkCapabilities(network) ?: return@mapNotNull null
+            network to PortalProtocol.NetworkCandidate(
+                id = network.toString(),
+                isWifi = caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI),
+                isVpn = caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN),
+                hasInternet = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET),
+                validated = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+            )
+        }
+        val chosen = PortalProtocol.pickWifiNetwork(candidates.map { it.second }) ?: return null
+        return candidates.firstOrNull { it.second == chosen }?.first
+    }
+
+    /** 当前是否存在可用的 WiFi 网络（与是否已认证无关）。 */
+    fun hasWifiNetwork(): Boolean {
+        val manager = appContext?.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            ?: return false
+        return pickWifiNetwork(manager) != null
     }
 
     /**
@@ -308,6 +332,12 @@ object NetworkUtils {
         val terminal = PortalProtocol.parseTerminal(page)
         if (!PortalProtocol.isIPv4(terminal.ip)) {
             return Result(false, "门户未返回本机 IP，请确认已连上校园网")
+        }
+
+        // 已经在线时再提交一次认证，RADIUS 会返回“从 radius 获取错误代码失败”，
+        // 这里先确认状态，已在线就直接按成功处理。
+        if (queryOwnSession(terminal) != null) {
+            return Result(true, "当前设备已在线")
         }
 
         val encrypt = readPageDataEncrypt(page)
@@ -389,7 +419,14 @@ object NetworkUtils {
         val ok = code == "1" ||
             msg.contains("AC999", ignoreCase = true) ||
             msg.contains("已在线")
-        return Result(ok, if (ok) "登录成功" else "登录失败：$msg")
+        if (ok) {
+            return Result(true, if (code == "1") "登录成功" else "当前账号已在线")
+        }
+        // RADIUS 侧的瞬时故障，账号密码本身没问题，重试通常就能过。
+        if (msg.contains("radius", ignoreCase = true)) {
+            return Result(false, "认证服务器暂时繁忙（$msg），请稍后重试")
+        }
+        return Result(false, "登录失败：$msg")
     }
 
     // ===== 注销 =====
@@ -452,36 +489,67 @@ object NetworkUtils {
             return null
         }
 
-        val query = listOf(
-            "callback" to "dr1002",
-            "user_account" to "",
-            "user_password" to "",
-            "wlan_user_mac" to "000000000000",
-            "wlan_user_ip" to PortalProtocol.ipToInt(terminal.ip).toString(),
-            "curr_user_ip" to "",
-            "jsVersion" to JS_VERSION,
-            "v" to randV(),
-            "lang" to "zh"
-        )
-        val text = httpGet(buildUrl(apiUrl("/eportal/portal/online_list"), query)).trim()
-        val payload = runCatching { PortalProtocol.parseJsonp(text) }.getOrNull() ?: return null
-        if (PortalProtocol.resultCode(payload) != "1") {
-            return null
-        }
-
-        val list = payload.optJSONArray("list") ?: return null
-        if (list.length() == 0) {
-            return null
-        }
-
-        val own = PortalProtocol.selectOwnSession(list, terminal.ip, localMac(terminal.ip))
-            ?: return null
+        // 门户首页的 ss4 就是网关认的本机 MAC。Android 10+ 普通应用读不到
+        // /sys/class/net 里的网卡 MAC，所以必须以门户给的为准，否则永远匹配不上。
+        val own = queryOwnSession(terminal) ?: return null
         return Session(
             ip = PortalProtocol.str(own, "online_ip").ifEmpty { terminal.ip },
             mac = PortalProtocol.str(own, "online_mac").ifEmpty { "000000000000" },
             vlan = terminal.vlan,
             account = PortalProtocol.str(own, "user_account")
         )
+    }
+
+    /**
+     * 查询本机在线会话。
+     *
+     * 网关偶尔会先返回一次“获取用户在线信息数据为空”，紧接着重试就正常，
+     * 所以空结果重试一次；MAC 依次用 门户 ss4 → 网卡读取。
+     */
+    private fun queryOwnSession(terminal: PortalProtocol.Terminal): JSONObject? {
+        val macs = listOf(terminal.mac, localMac(terminal.ip))
+            .filter { it.length == 12 && it != "000000000000" }
+            .distinct()
+
+        repeat(2) { attempt ->
+            val list = fetchOnlineList(terminal.ip) ?: return@repeat
+            if (list.length() == 0) {
+                return@repeat
+            }
+            for (mac in macs) {
+                PortalProtocol.selectOwnSession(list, terminal.ip, mac)?.let { return it }
+            }
+            // 只有一条且 IP 对得上时，退一步认定为本机（网关未回传 MAC 的情况）。
+            if (macs.isEmpty() && list.length() == 1) {
+                val only = list.optJSONObject(0)
+                if (only != null && PortalProtocol.str(only, "online_ip") == terminal.ip) {
+                    return only
+                }
+            }
+            if (attempt == 0) Thread.sleep(600)
+        }
+        return null
+    }
+
+    private fun fetchOnlineList(ip: String): JSONArray? {
+        val query = listOf(
+            "callback" to "dr1002",
+            "user_account" to "",
+            "user_password" to "",
+            "wlan_user_mac" to "000000000000",
+            "wlan_user_ip" to PortalProtocol.ipToInt(ip).toString(),
+            "curr_user_ip" to "",
+            "jsVersion" to JS_VERSION,
+            "v" to randV(),
+            "lang" to "zh"
+        )
+        return runCatching {
+            val payload = PortalProtocol.parseJsonp(
+                httpGet(buildUrl(apiUrl("/eportal/portal/online_list"), query)).trim()
+            )
+            if (PortalProtocol.resultCode(payload) != "1") return null
+            payload.optJSONArray("list")
+        }.getOrNull()
     }
 
     // ===== 自服务注销 =====

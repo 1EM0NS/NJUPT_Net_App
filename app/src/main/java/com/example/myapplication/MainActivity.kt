@@ -4,8 +4,6 @@ import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.net.Uri
 import android.net.wifi.WifiNetworkSuggestion
 import android.net.wifi.WifiManager
@@ -88,6 +86,7 @@ class MainActivity : AppCompatActivity() {
     // ===== 状态 =====
 
     private fun refreshStatus() {
+        binding.tvStatus.text = "正在检测状态…"
         lifecycleScope.launch {
             val online = withContext(Dispatchers.IO) { NetworkUtils.isOnline() }
             if (online) showLogoutUI() else showLoginUI()
@@ -118,11 +117,6 @@ class MainActivity : AppCompatActivity() {
         }
         if (binding.etPassword.text.isNullOrEmpty()) {
             toast("请输入密码")
-            return
-        }
-
-        if (isMobileDataEnabled()) {
-            showDisableMobileDataDialog()
             return
         }
 
@@ -190,13 +184,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ===== 网络环境 =====
-
-    private fun isMobileDataEnabled(): Boolean {
-        val manager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val network = manager.activeNetwork ?: return false
-        val caps = manager.getNetworkCapabilities(network) ?: return false
-        return caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
-    }
 
     private fun checkAndEnableWifi(): Boolean {
         val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
@@ -277,15 +264,6 @@ class MainActivity : AppCompatActivity() {
             dialog.dismiss()
             toast("自动切换失败，请手动连接 $ssid")
         }
-    }
-
-    private fun showDisableMobileDataDialog() {
-        AlertDialog.Builder(this)
-            .setTitle("关闭移动数据")
-            .setMessage("校园网登录需要走 WiFi，请先关闭移动数据")
-            .setPositiveButton("知道了") { d, _ -> d.dismiss() }
-            .setCancelable(false)
-            .show()
     }
 
     private fun checkPendingLogin() {

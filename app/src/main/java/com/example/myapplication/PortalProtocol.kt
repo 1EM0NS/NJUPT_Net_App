@@ -102,6 +102,25 @@ object PortalProtocol {
     fun normalizeMac(value: String): String =
         value.replace(Regex("[^0-9A-Fa-f]"), "").uppercase()
 
+    /**
+     * 在候选网络里挑出用于门户请求的 WiFi。
+     *
+     * 认证前的校园 WiFi 往往还没有 INTERNET / VALIDATED 能力，所以顺序是
+     * 已验证 > 有外网 > 任意 WiFi，只要有 WiFi 就选中，绝不回退到蜂窝或 VPN。
+     */
+    fun pickWifiNetwork(candidates: List<NetworkCandidate>): NetworkCandidate? =
+        candidates.firstOrNull { it.isWifi && !it.isVpn && it.validated }
+            ?: candidates.firstOrNull { it.isWifi && !it.isVpn && it.hasInternet }
+            ?: candidates.firstOrNull { it.isWifi && !it.isVpn }
+
+    data class NetworkCandidate(
+        val id: String,
+        val isWifi: Boolean,
+        val isVpn: Boolean,
+        val hasInternet: Boolean,
+        val validated: Boolean
+    )
+
     fun ipToInt(ip: String): Long {
         val parts = ip.split(".")
         if (parts.size != 4) throw IOException("无法识别本机 IP：$ip")
