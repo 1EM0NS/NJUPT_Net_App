@@ -73,14 +73,22 @@ object PortalProtocol {
         return macMatch
     }
 
-    /** 自服务在线列表结构不固定，rows / data / 裸数组都要能读。 */
+    /**
+     * 自服务在线列表结构不固定：实际返回是裸 JSON 数组
+     * （[{"ip":..,"mac":..,"sessionId":..}]），也兼容 rows / data / list 包装。
+     */
     fun findSessionId(json: String, ip: String, mac: String): String? {
         return runCatching {
-            val root = JSONObject(json)
-            val array = root.optJSONArray("rows")
-                ?: root.optJSONArray("data")
-                ?: root.optJSONArray("list")
-                ?: return null
+            val body = json.trim().trimStart('\uFEFF')
+            val array = if (body.startsWith("[")) {
+                JSONArray(body)
+            } else {
+                val root = JSONObject(body)
+                root.optJSONArray("rows")
+                    ?: root.optJSONArray("data")
+                    ?: root.optJSONArray("list")
+                    ?: return null
+            }
 
             val localMac = normalizeMac(mac)
             for (i in 0 until array.length()) {
@@ -92,7 +100,9 @@ object PortalProtocol {
                     continue
                 }
 
-                val id = str(item, "sessionId").ifEmpty { str(item, "sessionid") }
+                val id = str(item, "sessionId")
+                    .ifEmpty { str(item, "sessionid") }
+                    .ifEmpty { str(item, "session_id") }
                 if (id.isNotEmpty()) return id
             }
             null

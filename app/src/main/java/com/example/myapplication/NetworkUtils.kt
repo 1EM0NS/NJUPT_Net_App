@@ -261,6 +261,66 @@ object NetworkUtils {
         )
     }
 
+    data class SelfServiceProbe(
+        val authUrl: String,
+        val finalHost: String,
+        val sessionCount: Int,
+        val sessionIdFound: Boolean
+    )
+
+    /**
+     * 只读验证自服务链路：取跳转地址 → 跟随跳转 → 读在线列表。
+     *
+     * 不调用 tooffline，不会改变任何在线会话，仅用于确认退出功能是否具备条件。
+     */
+    fun probeSelfService(): SelfServiceProbe {
+        ensurePort()
+        val terminal = PortalProtocol.parseTerminal(httpGet(PORTAL_URL))
+        val own = queryOwnSession(terminal)
+            ?: return SelfServiceProbe("", "", 0, false)
+
+        val session = Session(
+            ip = PortalProtocol.str(own, "online_ip").ifEmpty { terminal.ip },
+            mac = PortalProtocol.str(own, "online_mac").ifEmpty { "000000000000" },
+            vlan = terminal.vlan,
+            account = PortalProtocol.str(own, "user_account")
+        )
+
+        val query = listOf(
+            "callback" to "dr" + (System.nanoTime() % 1_000_000_000L),
+            "self_type" to "1",
+            "user_account" to session.account,
+            "user_password" to "",
+            "wlan_user_mac" to session.mac.uppercase(),
+            "wlan_user_ip" to PortalProtocol.ipToInt(session.ip).toString(),
+            "jsVersion" to JS_VERSION,
+            "v" to randV(),
+            "lang" to "zh"
+        )
+        val payload = PortalProtocol.parseJsonp(
+            httpGet(buildUrl(apiUrl("/eportal/portal/self"), query))
+        )
+        val authUrl = PortalProtocol.str(payload, "self_auth_url")
+        if (authUrl.isEmpty()) {
+            return SelfServiceProbe("", "", 0, false)
+        }
+
+        val finalUrl = followToFinalUrl(authUrl)
+            ?: return SelfServiceProbe(authUrl, "", 0, false)
+        val base = "${finalUrl.scheme}://${finalUrl.host}" +
+            if (finalUrl.port > 0 && finalUrl.port != 443 && finalUrl.port != 80) ":${finalUrl.port}" else ""
+        val listText = httpGet(
+            "$base/Self/dashboard/getOnlineList?order=asc&_=${System.currentTimeMillis()}"
+        )
+        val count = runCatching {
+            val body = listText.trim()
+            if (body.startsWith("[")) org.json.JSONArray(body).length()
+            else JSONObject(body).optJSONArray("rows")?.length() ?: 0
+        }.getOrDefault(0)
+        val sid = PortalProtocol.findSessionId(listText, session.ip, session.mac)
+        return SelfServiceProbe(authUrl, finalUrl.host, count, sid != null)
+    }
+
     /**
      * 把本次请求绑定到校园 WiFi（非 VPN）网络。
      *
@@ -579,14 +639,17 @@ object NetworkUtils {
         val base = "${finalUrl.scheme}://${finalUrl.host}" +
             if (finalUrl.port > 0 && finalUrl.port != 443 && finalUrl.port != 80) ":${finalUrl.port}" else ""
 
+        // 自服务返回的是裸 JSON 数组，且会话靠 jsessionid Cookie 维持。
         val listText = httpGet("$base/Self/dashboard/getOnlineList?order=asc&_=${System.currentTimeMillis()}")
         val sid = PortalProtocol.findSessionId(listText, session.ip, session.mac)
             ?: return Result(false, "自服务列表未找到本机会话")
 
         val offlineText = httpGet(
-            "$base/Self/dashboard/tooffline?sessionid=${URLEncoder.encode(sid, "UTF-8")}"
+            "$base/Self/dashboard/tooffline?sessionid=${URLEncoder.encode(sid, "UTF-8")}",
+            referer = "$base/Self/dashboard"
         )
-        val ok = runCatching { JSONObject(offlineText).optBoolean("success", false) }.getOrDefault(false)
+        val ok = runCatching { JSONObject(offlineText).optBoolean("success", false) }
+            .getOrElse { offlineText.contains("\"success\":true") }
         return if (ok) Result(true, "已通过自服务退出登录") else Result(false, "自服务注销失败")
     }
 

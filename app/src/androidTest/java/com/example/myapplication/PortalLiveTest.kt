@@ -41,6 +41,30 @@ class PortalLiveTest {
         assertTrue("在线列表接口应返回 result=1，实际 ${online.result}", online.result == "1")
     }
 
+    /**
+     * 自服务链路只读自检：跳转地址可达、列表能解析、本机会话能找到。
+     * 不调用注销接口，不会影响真实在线状态。
+     */
+    @Test
+    fun selfServiceReadOnlyChainWorks() {
+        NetworkUtils.init(InstrumentationRegistry.getInstrumentation().targetContext)
+
+        val probe = runCatching { NetworkUtils.probeSelfService() }.getOrElse {
+            Log.e(TAG, "self service probe failed", it)
+            throw it
+        }
+        Log.i(
+            TAG,
+            "self: host=${probe.finalHost} count=${probe.sessionCount} " +
+                "sessionIdFound=${probe.sessionIdFound} authUrl=${probe.authUrl.take(80)}"
+        )
+
+        assertTrue("自服务应返回跳转地址", probe.authUrl.isNotEmpty())
+        assertTrue("自服务跳转应落到 10.10.244.240", probe.finalHost == "10.10.244.240")
+        assertTrue("自服务列表应能解析出会话", probe.sessionCount > 0)
+        assertTrue("应能在自服务列表里找到本机会话", probe.sessionIdFound)
+    }
+
     private companion object {
         const val TAG = "NJUPT_LIVE"
     }

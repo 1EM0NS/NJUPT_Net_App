@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  自服务系统只监听 http://10.10.244.240:8080，不支持 HTTPS，
+  因此只对该地址放开明文，其余域名仍然强制 HTTPS。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">10.10.244.240</domain>
+    </domain-config>
+</network-security-config>

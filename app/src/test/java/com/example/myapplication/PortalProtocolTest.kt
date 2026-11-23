@@ -225,4 +225,31 @@ class PortalProtocolTest {
         val own = PortalProtocol.selectOwnSession(list, "10.161.194.228", "00E09722EC28")
         assertNull(own)
     }
+
+    @Test
+    fun `自服务返回裸数组也能找到本机会话`() {
+        // 2026-11-23 抓自 http://10.10.244.240:8080/Self/dashboard/getOnlineList
+        val body = """[{"ip":"10.161.194.228","mac":"00E09722EC28","sessionId":"28091",""" +
+            """"terminalType":"#PC"},{"ip":"10.163.216.113","mac":"AE80D5EE4E51",""" +
+            """"sessionId":"5342","terminalType":"#移动终端"}]"""
+        assertEquals(
+            "28091",
+            PortalProtocol.findSessionId(body, "10.161.194.228", "00E09722EC28")
+        )
+    }
+
+    @Test
+    fun `自服务裸数组不会误选同账号其它设备`() {
+        val body = """[{"ip":"10.163.216.113","mac":"AE80D5EE4E51","sessionId":"5342"}]"""
+        assertNull(PortalProtocol.findSessionId(body, "10.161.194.228", "00E09722EC28"))
+    }
+
+    @Test
+    fun `自服务仍兼容 rows 包装`() {
+        val body = """{"rows":[{"ip":"10.161.194.228","mac":"00E09722EC28","sessionId":"28091"}]}"""
+        assertEquals(
+            "28091",
+            PortalProtocol.findSessionId(body, "10.161.194.228", "00E09722EC28")
+        )
+    }
 }
