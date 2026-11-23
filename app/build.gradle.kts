@@ -11,8 +11,8 @@ android {
         applicationId = "com.example.njuptnet"
         minSdk = 29
         targetSdk = 34
-        versionCode = 8
-        versionName = "2.6.0"
+        versionCode = 9
+        versionName = "2.6.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
